@@ -1,0 +1,30 @@
+From 2d15baf86fe0cea8255e534ff975ff6aebc128eb Mon Sep 17 00:00:00 2001
+Message-Id: <2d15baf86fe0cea8255e534ff975ff6aebc128eb.1666876576.git.thomas@gllm.fr>
+In-Reply-To: <6a9eb21838d7525666a9a306c005307aaef6afb8.1666876576.git.thomas@gllm.fr>
+References: <6a9eb21838d7525666a9a306c005307aaef6afb8.1666876576.git.thomas@gllm.fr>
+From: Thomas Guillem <thomas@gllm.fr>
+Date: Thu, 2 Jul 2020 15:05:01 +0200
+Subject: [PATCH 4/6] input: es_out: set video exclusive
+
+Since there can be only one video at a time for now (only one Surface is
+supported).
+---
+ src/input/es_out.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/input/es_out.c b/src/input/es_out.c
+index cf10e4a409b..4967cae4ceb 100644
+--- a/src/input/es_out.c
++++ b/src/input/es_out.c
+@@ -556,7 +556,7 @@ es_out_t *input_EsOutNew( input_thread_t *p_input, input_source_t *main_source,
+ 
+     /* */
+     EsOutPropsInit( &p_sys->video, true, p_input, input_type,
+-                    ES_OUT_ES_POLICY_AUTO,
++                    ES_OUT_ES_POLICY_EXCLUSIVE,
+                     "video-track-id", "video-track", NULL, NULL );
+     EsOutPropsInit( &p_sys->audio, true, p_input, input_type,
+                     ES_OUT_ES_POLICY_EXCLUSIVE,
+-- 
+2.35.1
+

@@ -1,0 +1,28 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+buildscript {
+    ext.android_plugin_version = '8.11.0'
+    repositories {
+        flatDir dirs: "gradle/plugins"
+        google()
+        mavenCentral()
+        mavenLocal()
+   }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$android_plugin_version"
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:2.1'
+        classpath 'com.vanniktech:gradle-maven-publish-plugin:0.25.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+ext {
+    libvlcVersion = '4.0.0-eap23'
+    androidxLegacyVersion = '1.0.0'
+    androidxAnnotationVersion = '1.3.0'
+}

@@ -1,0 +1,20 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+plugins {
+    id("com.android.settings") version "8.11.0"
+}
+
+android {
+    minSdk = 21
+    targetSdk = 35
+    compileSdk = 35 // Dockers: 3.0=36 / 4.0=36
+    buildToolsVersion = '35.0.0'
+}
+include ':libvlc'
+
+

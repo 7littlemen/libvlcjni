@@ -1,0 +1,112 @@
+apply plugin: 'com.android.library'
+apply plugin: "com.vanniktech.maven.publish"
+
+def abi = System.getenv('GRADLE_ABI')?.toLowerCase()
+def vlcSrcDirs = System.getenv('GRADLE_VLC_SRC_DIRS')
+ext {
+    library_version = "$rootProject.ext.libvlcVersion"
+}
+android {
+    namespace 'org.videolan'
+
+    defaultConfig {
+        resValue "string", "build_libvlc_revision", libvlcRevision()
+        resValue "string", "build_vlc_revision", vlcRevision()
+        tasks.whenTaskAdded { task ->
+            if (task.name.startsWith('merge')) {
+                task.dependsOn hrtfsCopy
+                task.dependsOn luaPlaylistCopy
+                task.dependsOn luaMetaCopy
+                task.dependsOn luaModuleCopy
+            }
+        }
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs = [ 'jni/libs' ]
+            jniLibs.srcDirs += "$vlcSrcDirs"
+        }
+        androidTest {
+            jniLibs.srcDirs = [ 'jni/libs' ]
+            jniLibs.srcDirs += "$vlcSrcDirs"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+        dev {
+            initWith debug
+            matchingFallbacks = ['debug']
+        }
+    }
+
+    // Make per-variant version code
+    libraryVariants.all { variant ->
+        //Custom APK name
+        variant.outputs.each { output ->
+            if (output.outputFileName != null && output.outputFileName.endsWith('.aar')) {
+                output.outputFileName = "libvlc-${abi}-${library_version}.aar"
+            }
+        }
+    }
+
+    task hrtfsCopy(type: Copy) {
+        from '../vlc/share/hrtfs'
+        into 'assets/hrtfs'
+    }
+
+    task luaPlaylistCopy(type: Copy) {
+        from '../vlc/share/lua/playlist'
+        into 'assets/lua/playlist'
+        exclude '**/*.txt'
+    }
+
+    task luaModuleCopy(type: Copy) {
+        from '../vlc/share/lua/modules'
+        into 'assets/lua/modules'
+        exclude '**/*.txt'
+    }
+
+    task luaMetaCopy(type: Copy) {
+        from '../vlc/share/lua/meta'
+        into 'assets/lua/meta'
+        exclude '**/*.txt'
+    }
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+clean {
+    delete 'build', 'jni/libs', 'jni/obj'
+}
+
+dependencies {
+    api "androidx.annotation:annotation:$rootProject.ext.androidxAnnotationVersion"
+    api "androidx.legacy:legacy-support-v4:$rootProject.ext.androidxLegacyVersion"
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+def libvlcRevision() {
+    return "Local"
+}
+
+def vlcRevision() {
+//    def vlc = new ByteArrayOutputStream()
+//    exec {
+//        commandLine 'git', 'rev-parse', '--short', 'HEAD'
+//        workingDir '../vlc'
+//        standardOutput = vlc
+//    }
+    return "Local"
+}
+
+apply from: "../publish.gradle"
