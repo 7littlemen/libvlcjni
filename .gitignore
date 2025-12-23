@@ -53,3 +53,12 @@ dkms.conf
 
 # debug information files
 *.dwo
+*
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio
+.idea/
+*.iml
