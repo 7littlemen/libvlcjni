@@ -2202,6 +2202,35 @@ LIBVLC_API void libvlc_video_set_spu_text_scale( libvlc_media_player_t *p_mi, fl
 LIBVLC_API void libvlc_video_set_spu_text_position( libvlc_media_player_t *p_mi, int margin_px );
 
 /**
+ * Set subtitle text color.
+ *
+ * This affects text-based subtitles rendered by the freetype text renderer.
+ * It can be changed while playing (i.e. real-time).
+ *
+ * The color format is $0xRRGGBB$. If an ARGB value is provided, the alpha
+ * component is ignored.
+ *
+ * \param p_mi media player
+ * \param color subtitle text color (0xRRGGBB or 0xAARRGGBB)
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API void libvlc_video_set_spu_text_color( libvlc_media_player_t *p_mi, int64_t color );
+
+/**
+ * Get subtitle text color.
+ *
+ * This returns the current color used for text-based subtitles rendered by the
+ * freetype text renderer.
+ *
+ * The returned format is $0xRRGGBB$.
+ *
+ * \param p_mi media player
+ * \return subtitle text color (0xRRGGBB)
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API int64_t libvlc_video_get_spu_text_color( libvlc_media_player_t *p_mi );
+
+/**
  * Set the subtitle delay. This affects the timing of when the subtitle will
  * be displayed. Positive values result in subtitles being displayed later,
  * while negative values will result in subtitles being displayed earlier.

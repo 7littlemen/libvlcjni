@@ -407,6 +407,44 @@ void libvlc_video_set_spu_text_position( libvlc_media_player_t *p_mi,
     free(pp_vouts);
 }
 
+void libvlc_video_set_spu_text_color( libvlc_media_player_t *p_mi,
+                                      int64_t color )
+{
+    const int64_t rgb = color & 0x00FFFFFF;
+    var_Create(p_mi, "freetype-color", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+    var_SetInteger(p_mi, "freetype-color", rgb);
+
+    /* Apply to current video outputs (if any) */
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    for (size_t i = 0; i < n; i++)
+    {
+        var_Create(pp_vouts[i], "freetype-color", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+        var_SetInteger(pp_vouts[i], "freetype-color", rgb);
+        vout_Release(pp_vouts[i]);
+    }
+    free(pp_vouts);
+}
+
+int64_t libvlc_video_get_spu_text_color( libvlc_media_player_t *p_mi )
+{
+    int64_t color = 0;
+
+    /* Prefer the active vout chain (spu inherits from vout) */
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    if (n > 0)
+        color = var_InheritInteger(pp_vouts[0], "freetype-color");
+    for (size_t i = 0; i < n; i++)
+        vout_Release(pp_vouts[i]);
+    free(pp_vouts);
+
+    if (n == 0)
+        color = var_InheritInteger(p_mi, "freetype-color");
+
+    return color & 0x00FFFFFF;
+}
+
 static void libvlc_video_set_crop(libvlc_media_player_t *mp,
                                   const char *geometry)
 {

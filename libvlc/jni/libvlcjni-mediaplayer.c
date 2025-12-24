@@ -949,6 +949,31 @@ Java_org_videolan_libvlc_MediaPlayer_nativeSetSpuTextPosition(JNIEnv *env,
     libvlc_video_set_spu_text_position(p_obj->u.p_mp, (int) margin_px);
 }
 
+void
+Java_org_videolan_libvlc_MediaPlayer_nativeSetSpuTextColor(JNIEnv *env,
+                                                           jobject thiz,
+                                                           jlong color)
+{
+    vlcjni_object *p_obj = VLCJniObject_getInstance(env, thiz);
+
+    if (!p_obj)
+        return;
+
+    libvlc_video_set_spu_text_color(p_obj->u.p_mp, (int64_t) color);
+}
+
+jlong
+Java_org_videolan_libvlc_MediaPlayer_nativeGetSpuTextColor(JNIEnv *env,
+                                                           jobject thiz)
+{
+    vlcjni_object *p_obj = VLCJniObject_getInstance(env, thiz);
+
+    if (!p_obj)
+        return 0;
+
+    return (jlong) libvlc_video_get_spu_text_color(p_obj->u.p_mp);
+}
+
 jboolean
 Java_org_videolan_libvlc_MediaPlayer_nativeTakeSnapshot(JNIEnv *env, jobject thiz,
                                                         jint num, jstring jfilepath,

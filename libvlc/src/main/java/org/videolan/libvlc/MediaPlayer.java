@@ -1225,6 +1225,15 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     }
 
     /**
+     * Get current subtitle text color.
+     *
+     * @return subtitle text color in {@code 0xRRGGBB} format.
+     */
+    public long getSpuTextColor() {
+        return nativeGetSpuTextColor();
+    }
+
+    /**
      * Set subtitle text scaling factor.
      *
      * This is the recommended real-time way to change subtitle size in libVLC.
@@ -1250,6 +1259,21 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
      */
     public void setSpuTextPosition(int marginPx) {
         nativeSetSpuTextPosition(marginPx);
+    }
+
+    /**
+     * Set subtitle text color.
+     *
+     * This affects text-based subtitles rendered by libVLC (SRT/ASS/SSA etc.).
+     * It can be changed while playing (i.e. real-time).
+     *
+     * Expected format is {@code 0xRRGGBB}. If an Android {@code 0xAARRGGBB}
+     * color is provided, the alpha component is ignored.
+     *
+     * @param color subtitle text color (0xRRGGBB or 0xAARRGGBB)
+     */
+    public void setSpuTextColor(long color) {
+        nativeSetSpuTextColor(color);
     }
 
     /**
@@ -1610,6 +1634,8 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     private native void nativeSetSpuTextScale(float scale);
     private native int nativeGetSpuTextPosition();
     private native void nativeSetSpuTextPosition(int marginPx);
+    private native void nativeSetSpuTextColor(long color);
+    private native long nativeGetSpuTextColor();
     private native boolean nativeTakeSnapshot(int num, @NonNull String filePath, int width, int height);
     private native void nativeSetVideoAdjustBool(int option, boolean value);
     private native boolean nativeGetVideoAdjustBool(int option);
