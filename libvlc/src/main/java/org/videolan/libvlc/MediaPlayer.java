@@ -1212,6 +1212,19 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     }
 
     /**
+     * Get current subtitle text position (bottom margin).
+     *
+     * This value affects the vertical position of subtitles by adding a margin
+     * from the bottom of the video.
+     * It can be changed while playing (i.e. real-time).
+     *
+     * @return bottom margin in pixels (same semantics as libVLC --sub-margin)
+     */
+    public int getSpuTextPosition() {
+        return nativeGetSpuTextPosition();
+    }
+
+    /**
      * Set subtitle text scaling factor.
      *
      * This is the recommended real-time way to change subtitle size in libVLC.
@@ -1226,6 +1239,17 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
      */
     public void setSpuTextScale(float scale) {
         nativeSetSpuTextScale(scale);
+    }
+
+    /**
+     * Set subtitle text position (bottom margin).
+     *
+     * This is the recommended real-time way to move subtitles up/down.
+     *
+     * @param marginPx bottom margin in pixels (same semantics as libVLC --sub-margin)
+     */
+    public void setSpuTextPosition(int marginPx) {
+        nativeSetSpuTextPosition(marginPx);
     }
 
     /**
@@ -1584,6 +1608,8 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     private native boolean nativeSetSpuDelay(long delay);
     private native float nativeGetSpuTextScale();
     private native void nativeSetSpuTextScale(float scale);
+    private native int nativeGetSpuTextPosition();
+    private native void nativeSetSpuTextPosition(int marginPx);
     private native boolean nativeTakeSnapshot(int num, @NonNull String filePath, int width, int height);
     private native void nativeSetVideoAdjustBool(int option, boolean value);
     private native boolean nativeGetVideoAdjustBool(int option);

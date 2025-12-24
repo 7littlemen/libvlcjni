@@ -911,6 +911,18 @@ Java_org_videolan_libvlc_MediaPlayer_nativeGetSpuTextScale(JNIEnv *env,
     return (jfloat) libvlc_video_get_spu_text_scale(p_obj->u.p_mp);
 }
 
+jint
+Java_org_videolan_libvlc_MediaPlayer_nativeGetSpuTextPosition(JNIEnv *env,
+                                                              jobject thiz)
+{
+    vlcjni_object *p_obj = VLCJniObject_getInstance(env, thiz);
+
+    if (!p_obj)
+        return 0;
+
+    return (jint) libvlc_video_get_spu_text_position(p_obj->u.p_mp);
+}
+
 void
 Java_org_videolan_libvlc_MediaPlayer_nativeSetSpuTextScale(JNIEnv *env,
                                                            jobject thiz,
@@ -922,6 +934,19 @@ Java_org_videolan_libvlc_MediaPlayer_nativeSetSpuTextScale(JNIEnv *env,
         return;
 
     libvlc_video_set_spu_text_scale(p_obj->u.p_mp, (float) scale);
+}
+
+void
+Java_org_videolan_libvlc_MediaPlayer_nativeSetSpuTextPosition(JNIEnv *env,
+                                                              jobject thiz,
+                                                              jint margin_px)
+{
+    vlcjni_object *p_obj = VLCJniObject_getInstance(env, thiz);
+
+    if (!p_obj)
+        return;
+
+    libvlc_video_set_spu_text_position(p_obj->u.p_mp, (int) margin_px);
 }
 
 jboolean

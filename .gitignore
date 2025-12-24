@@ -66,3 +66,4 @@ build/
 # Android Studio
 .idea/
 *.iml
+sync.ffs_lock

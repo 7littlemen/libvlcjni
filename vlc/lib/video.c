@@ -375,6 +375,11 @@ float libvlc_video_get_spu_text_scale( libvlc_media_player_t *p_mi )
     return scale / 100.f;
 }
 
+int libvlc_video_get_spu_text_position( libvlc_media_player_t *p_mi )
+{
+    return var_GetInteger(p_mi, "sub-margin");
+}
+
 void libvlc_video_set_spu_text_scale( libvlc_media_player_t *p_mi,
                                       float f_scale )
 {
@@ -384,6 +389,22 @@ void libvlc_video_set_spu_text_scale( libvlc_media_player_t *p_mi,
     vlc_player_SetSubtitleTextScale(player, lroundf(f_scale * 100.f));
 
     vlc_player_Unlock(player);
+}
+
+void libvlc_video_set_spu_text_position( libvlc_media_player_t *p_mi,
+                                         int margin_px )
+{
+    var_SetInteger(p_mi, "sub-margin", margin_px);
+
+    /* Apply to current video outputs (if any) */
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    for (size_t i = 0; i < n; i++)
+    {
+        var_SetInteger(pp_vouts[i], "sub-margin", margin_px);
+        vout_Release(pp_vouts[i]);
+    }
+    free(pp_vouts);
 }
 
 static void libvlc_video_set_crop(libvlc_media_player_t *mp,

@@ -2160,6 +2160,18 @@ LIBVLC_API int64_t libvlc_video_get_spu_delay( libvlc_media_player_t *p_mi );
 LIBVLC_API float libvlc_video_get_spu_text_scale( libvlc_media_player_t *p_mi );
 
 /**
+ * Get the current subtitle position (bottom margin).
+ *
+ * This is the number of pixels between the bottom of the video and the
+ * baseline position of the primary subtitles.
+ *
+ * \param p_mi media player
+ * \return subtitle margin in pixels
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API int libvlc_video_get_spu_text_position( libvlc_media_player_t *p_mi );
+
+/**
  * Set the subtitle text scale.
  *
  * The scale factor is expressed as a percentage of the default size, where
@@ -2177,6 +2189,17 @@ LIBVLC_API float libvlc_video_get_spu_text_scale( libvlc_media_player_t *p_mi );
  * \version LibVLC 4.0.0 or later
  */
 LIBVLC_API void libvlc_video_set_spu_text_scale( libvlc_media_player_t *p_mi, float f_scale );
+
+/**
+ * Set the subtitle position (bottom margin).
+ *
+ * This can be changed while playing (i.e. real-time).
+ *
+ * \param p_mi media player
+ * \param margin_px bottom margin in pixels (same semantics as --sub-margin)
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API void libvlc_video_set_spu_text_position( libvlc_media_player_t *p_mi, int margin_px );
 
 /**
  * Set the subtitle delay. This affects the timing of when the subtitle will
