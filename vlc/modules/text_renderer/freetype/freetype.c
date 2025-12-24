@@ -670,6 +670,9 @@ static void UpdateDefaultLiveStyles( filter_t *p_filter )
     p_style->i_background_alpha = var_InheritInteger( p_filter, "freetype-background-opacity" );
     p_style->i_background_color = var_InheritInteger( p_filter, "freetype-background-color" );
 
+    p_style->i_outline_alpha = var_InheritInteger( p_filter, "freetype-outline-opacity" );
+    p_style->i_outline_color = var_InheritInteger( p_filter, "freetype-outline-color" );
+
     p_sys->i_outline_thickness = var_InheritInteger( p_filter, "freetype-outline-thickness" );
 }
 

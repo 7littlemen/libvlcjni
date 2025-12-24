@@ -445,6 +445,79 @@ int64_t libvlc_video_get_spu_text_color( libvlc_media_player_t *p_mi )
     return color & 0x00FFFFFF;
 }
 
+void libvlc_video_set_spu_outline_color( libvlc_media_player_t *p_mi,
+                                         int64_t color )
+{
+    const int64_t rgb = color & 0x00FFFFFF;
+    var_Create(p_mi, "freetype-outline-color", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+    var_SetInteger(p_mi, "freetype-outline-color", rgb);
+
+    /* Apply to current video outputs (if any) */
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    for (size_t i = 0; i < n; i++)
+    {
+        var_Create(pp_vouts[i], "freetype-outline-color", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+        var_SetInteger(pp_vouts[i], "freetype-outline-color", rgb);
+        vout_Release(pp_vouts[i]);
+    }
+    free(pp_vouts);
+}
+
+int64_t libvlc_video_get_spu_outline_color( libvlc_media_player_t *p_mi )
+{
+    int64_t color = 0;
+
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    if (n > 0)
+        color = var_InheritInteger(pp_vouts[0], "freetype-outline-color");
+    for (size_t i = 0; i < n; i++)
+        vout_Release(pp_vouts[i]);
+    free(pp_vouts);
+
+    if (n == 0)
+        color = var_InheritInteger(p_mi, "freetype-outline-color");
+
+    return color & 0x00FFFFFF;
+}
+
+void libvlc_video_set_spu_outline_thickness( libvlc_media_player_t *p_mi,
+                                             int thickness )
+{
+    var_Create(p_mi, "freetype-outline-thickness", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+    var_SetInteger(p_mi, "freetype-outline-thickness", thickness);
+
+    /* Apply to current video outputs (if any) */
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    for (size_t i = 0; i < n; i++)
+    {
+        var_Create(pp_vouts[i], "freetype-outline-thickness", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT);
+        var_SetInteger(pp_vouts[i], "freetype-outline-thickness", thickness);
+        vout_Release(pp_vouts[i]);
+    }
+    free(pp_vouts);
+}
+
+int libvlc_video_get_spu_outline_thickness( libvlc_media_player_t *p_mi )
+{
+    int64_t thickness = 0;
+
+    size_t n;
+    vout_thread_t **pp_vouts = GetVouts(p_mi, &n);
+    if (n > 0)
+        thickness = var_InheritInteger(pp_vouts[0], "freetype-outline-thickness");
+    for (size_t i = 0; i < n; i++)
+        vout_Release(pp_vouts[i]);
+    free(pp_vouts);
+
+    if (n == 0)
+        thickness = var_InheritInteger(p_mi, "freetype-outline-thickness");
+
+    return (int) thickness;
+}
+
 static void libvlc_video_set_crop(libvlc_media_player_t *mp,
                                   const char *geometry)
 {

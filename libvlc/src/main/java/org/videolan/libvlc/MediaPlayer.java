@@ -1234,6 +1234,30 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     }
 
     /**
+     * Get current subtitle outline color.
+     *
+     * @return subtitle outline color in {@code 0xRRGGBB} format.
+     */
+    public long getSpuOutlineColor() {
+        return nativeGetSpuOutlineColor();
+    }
+
+    /**
+     * Get current subtitle outline thickness.
+     *
+     * Typical values:
+     *  - 0: none
+     *  - 2: thin
+     *  - 4: normal
+     *  - 6: thick
+     *
+     * @return outline thickness (same semantics as libVLC --freetype-outline-thickness)
+     */
+    public int getSpuOutlineThickness() {
+        return nativeGetSpuOutlineThickness();
+    }
+
+    /**
      * Set subtitle text scaling factor.
      *
      * This is the recommended real-time way to change subtitle size in libVLC.
@@ -1274,6 +1298,39 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
      */
     public void setSpuTextColor(long color) {
         nativeSetSpuTextColor(color);
+    }
+
+    /**
+     * Set subtitle outline color.
+     *
+     * This affects text-based subtitles rendered by libVLC (SRT/ASS/SSA etc.).
+     * It can be changed while playing (i.e. real-time).
+     *
+     * Expected format is {@code 0xRRGGBB}. If an Android {@code 0xAARRGGBB}
+     * color is provided, the alpha component is ignored.
+     *
+     * @param color subtitle outline color (0xRRGGBB or 0xAARRGGBB)
+     */
+    public void setSpuOutlineColor(long color) {
+        nativeSetSpuOutlineColor(color);
+    }
+
+    /**
+     * Set subtitle outline thickness.
+     *
+     * This affects text-based subtitles rendered by libVLC (SRT/ASS/SSA etc.).
+     * It can be changed while playing (i.e. real-time).
+     *
+     * Typical values:
+     *  - 0: none
+     *  - 2: thin
+     *  - 4: normal
+     *  - 6: thick
+     *
+     * @param thickness outline thickness (same semantics as libVLC --freetype-outline-thickness)
+     */
+    public void setSpuOutlineThickness(int thickness) {
+        nativeSetSpuOutlineThickness(thickness);
     }
 
     /**
@@ -1636,6 +1693,10 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     private native void nativeSetSpuTextPosition(int marginPx);
     private native void nativeSetSpuTextColor(long color);
     private native long nativeGetSpuTextColor();
+    private native void nativeSetSpuOutlineColor(long color);
+    private native long nativeGetSpuOutlineColor();
+    private native void nativeSetSpuOutlineThickness(int thickness);
+    private native int nativeGetSpuOutlineThickness();
     private native boolean nativeTakeSnapshot(int num, @NonNull String filePath, int width, int height);
     private native void nativeSetVideoAdjustBool(int option, boolean value);
     private native boolean nativeGetVideoAdjustBool(int option);

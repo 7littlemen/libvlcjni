@@ -2231,6 +2231,51 @@ LIBVLC_API void libvlc_video_set_spu_text_color( libvlc_media_player_t *p_mi, in
 LIBVLC_API int64_t libvlc_video_get_spu_text_color( libvlc_media_player_t *p_mi );
 
 /**
+ * Set subtitle outline color.
+ *
+ * This affects text-based subtitles rendered by the freetype text renderer.
+ * It can be changed while playing (i.e. real-time).
+ *
+ * The color format is $0xRRGGBB$. If an ARGB value is provided, the alpha
+ * component is ignored.
+ *
+ * \param p_mi media player
+ * \param color outline color (0xRRGGBB or 0xAARRGGBB)
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API void libvlc_video_set_spu_outline_color( libvlc_media_player_t *p_mi, int64_t color );
+
+/**
+ * Get subtitle outline color.
+ *
+ * \param p_mi media player
+ * \return outline color (0xRRGGBB)
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API int64_t libvlc_video_get_spu_outline_color( libvlc_media_player_t *p_mi );
+
+/**
+ * Set subtitle outline thickness.
+ *
+ * This affects text-based subtitles rendered by the freetype text renderer.
+ * It can be changed while playing (i.e. real-time).
+ *
+ * \param p_mi media player
+ * \param thickness outline thickness (same semantics as --freetype-outline-thickness)
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API void libvlc_video_set_spu_outline_thickness( libvlc_media_player_t *p_mi, int thickness );
+
+/**
+ * Get subtitle outline thickness.
+ *
+ * \param p_mi media player
+ * \return outline thickness
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API int libvlc_video_get_spu_outline_thickness( libvlc_media_player_t *p_mi );
+
+/**
  * Set the subtitle delay. This affects the timing of when the subtitle will
  * be displayed. Positive values result in subtitles being displayed later,
  * while negative values will result in subtitles being displayed earlier.
