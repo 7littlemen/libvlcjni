@@ -29,12 +29,195 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <ctype.h>
+
 #include <vlc_common.h>
 #include <vlc_url.h>
 #include <vlc_strings.h>
 #include "message.h"
 #include "connmgr.h"
 #include "resource.h"
+
+static bool vlc_http_header_name_is_forbidden(const char *name)
+{
+    static const char *const forbidden[] = {
+        "Host",
+        "Range",
+        "Connection",
+        "Accept-Encoding",
+        "Content-Length",
+        "Transfer-Encoding",
+        "Cookie",
+    };
+
+    for (size_t i = 0; i < sizeof(forbidden) / sizeof(forbidden[0]); i++)
+        if (!vlc_ascii_strcasecmp(name, forbidden[i]))
+            return true;
+    return false;
+}
+
+static bool vlc_http_header_name_is_valid(const char *name)
+{
+    if (name == NULL || *name == '\0')
+        return false;
+
+    for (const unsigned char *p = (const unsigned char *)name; *p != '\0'; p++)
+    {
+        if (isalnum(*p) || *p == '-' || *p == '_')
+            continue;
+        return false;
+    }
+    return true;
+}
+
+static char *vlc_http_strdup_trim(const char *start, size_t len)
+{
+    while (len > 0 && isspace((unsigned char)start[0]))
+    {
+        start++;
+        len--;
+    }
+    while (len > 0 && isspace((unsigned char)start[len - 1]))
+        len--;
+
+    char *out = malloc(len + 1);
+    if (out == NULL)
+        return NULL;
+    memcpy(out, start, len);
+    out[len] = '\0';
+    return out;
+}
+
+static char *vlc_http_strdup_trim_value(const char *start, size_t len)
+{
+    while (len > 0 && (start[0] == ' ' || start[0] == '\t'))
+    {
+        start++;
+        len--;
+    }
+    while (len > 0 && (start[len - 1] == ' ' || start[len - 1] == '\t'
+                    || start[len - 1] == '\r'))
+        len--;
+
+    char *out = malloc(len + 1);
+    if (out == NULL)
+        return NULL;
+    memcpy(out, start, len);
+    out[len] = '\0';
+    return out;
+}
+
+static void vlc_http_custom_headers_clear(struct vlc_http_resource *res)
+{
+    for (size_t i = 0; i < res->custom_headers_count; i++)
+    {
+        free(res->custom_headers[i].name);
+        free(res->custom_headers[i].value);
+    }
+    free(res->custom_headers);
+    res->custom_headers = NULL;
+    res->custom_headers_count = 0;
+}
+
+static bool vlc_http_custom_headers_add(struct vlc_http_resource *res,
+                                        const char *name, const char *value)
+{
+    struct vlc_http_custom_header *headers =
+        realloc(res->custom_headers,
+                (res->custom_headers_count + 1) * sizeof(*headers));
+    if (headers == NULL)
+        return false;
+
+    res->custom_headers = headers;
+    char *name_copy = strdup(name);
+    char *value_copy = strdup(value);
+
+    if (name_copy == NULL || value_copy == NULL)
+    {
+        free(name_copy);
+        free(value_copy);
+        return false;
+    }
+
+    res->custom_headers[res->custom_headers_count].name = name_copy;
+    res->custom_headers[res->custom_headers_count].value = value_copy;
+    res->custom_headers_count++;
+    return true;
+}
+
+static void vlc_http_custom_headers_parse(struct vlc_http_resource *res,
+                                         const char *custom_headers)
+{
+    if (custom_headers == NULL || *custom_headers == '\0')
+        return;
+
+    const char *p = custom_headers;
+    while (*p != '\0')
+    {
+        const char *line = p;
+        const char *nl = strchr(p, '\n');
+        size_t line_len = (nl != NULL) ? (size_t)(nl - line) : strlen(line);
+        p = (nl != NULL) ? (nl + 1) : (line + line_len);
+
+        while (line_len > 0 && (line[line_len - 1] == '\r' || line[line_len - 1] == '\n'))
+            line_len--;
+
+        const char *s = line;
+        size_t s_len = line_len;
+        while (s_len > 0 && isspace((unsigned char)s[0]))
+        {
+            s++;
+            s_len--;
+        }
+        if (s_len == 0)
+            continue;
+
+        const char *colon = memchr(s, ':', s_len);
+        if (colon == NULL)
+        {
+            if (res->logger)
+                msg_Dbg(res->logger, "HTTP custom header skipped (invalid): %.*s",
+                        (int)s_len, s);
+            continue;
+        }
+
+        char *name = vlc_http_strdup_trim(s, (size_t)(colon - s));
+        char *value = vlc_http_strdup_trim_value(colon + 1,
+                                                 s_len - (size_t)((colon + 1) - s));
+        if (name == NULL || value == NULL)
+        {
+            free(name);
+            free(value);
+            if (res->logger)
+                msg_Dbg(res->logger, "HTTP custom header skipped (oom)");
+            continue;
+        }
+
+        if (!vlc_http_header_name_is_valid(name))
+        {
+            if (res->logger)
+                msg_Dbg(res->logger, "HTTP custom header skipped (invalid name): %s", name);
+            free(name);
+            free(value);
+            continue;
+        }
+
+        if (vlc_http_header_name_is_forbidden(name))
+        {
+            if (res->logger)
+                msg_Dbg(res->logger, "HTTP custom header filtered: %s", name);
+            free(name);
+            free(value);
+            continue;
+        }
+
+        if (vlc_http_custom_headers_add(res, name, value) && res->logger)
+            msg_Dbg(res->logger, "HTTP custom header added: %s: %s", name, value);
+
+        free(name);
+        free(value);
+    }
+}
 
 static struct vlc_http_msg *
 vlc_http_res_req(const struct vlc_http_resource *res, void *opaque)
@@ -76,6 +259,15 @@ vlc_http_res_req(const struct vlc_http_resource *res, void *opaque)
     {
         vlc_http_msg_destroy(req);
         return NULL;
+    }
+
+    for (size_t i = 0; i < res->custom_headers_count; i++)
+    {
+        vlc_http_msg_add_header(req, res->custom_headers[i].name, "%s",
+                                res->custom_headers[i].value);
+        if (res->logger)
+            msg_Dbg(res->logger, "HTTP request custom header: %s: %s",
+                    res->custom_headers[i].name, res->custom_headers[i].value);
     }
 
     return req;
@@ -147,6 +339,7 @@ int vlc_http_res_get_status(struct vlc_http_resource *res)
 
 static void vlc_http_res_deinit(struct vlc_http_resource *res)
 {
+    vlc_http_custom_headers_clear(res);
     free(res->referrer);
     free(res->agent);
     free(res->password);
@@ -168,7 +361,8 @@ void vlc_http_res_destroy(struct vlc_http_resource *res)
 int vlc_http_res_init(struct vlc_http_resource *restrict res,
                       const struct vlc_http_resource_cbs *cbs,
                       struct vlc_http_mgr *mgr,
-                      const char *uri, const char *ua, const char *ref)
+                      const char *uri, const char *ua, const char *ref,
+                      const char *custom_headers, vlc_object_t *logger)
 {
     vlc_url_t url;
     bool secure;
@@ -196,6 +390,9 @@ int vlc_http_res_init(struct vlc_http_resource *restrict res,
     res->secure = secure;
     res->negotiate = true;
     res->failure = false;
+    res->logger = logger;
+    res->custom_headers = NULL;
+    res->custom_headers_count = 0;
     res->host = strdup(url.psz_host);
     res->port = url.i_port;
     res->authority = vlc_http_authority(url.psz_host, url.i_port);
@@ -205,6 +402,8 @@ int vlc_http_res_init(struct vlc_http_resource *restrict res,
                                                : NULL;
     res->agent = (ua != NULL) ? strdup(ua) : NULL;
     res->referrer = (ref != NULL) ? strdup(ref) : NULL;
+
+    vlc_http_custom_headers_parse(res, custom_headers);
 
     const char *path = url.psz_path;
     if (path == NULL)

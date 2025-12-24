@@ -473,6 +473,16 @@ public class Media extends VLCObject<IMedia.Event> implements IMedia {
     /**
      * Add an option to this Media. This Media should be alive (not released).
      *
+     * <p>
+     * Examples:
+     * <ul>
+     *     <li><code>:http-user-agent=MVPlayer/1.0.0</code></li>
+     *     <li><code>:custom-http-headers=header1: value1\nheader2:value2</code></li>
+     * </ul>
+     * Note: <code>:custom-http-headers</code> is applied per Media instance.
+     * Forbidden headers are ignored: Host, Range, Connection, Accept-Encoding,
+     * Content-Length, Transfer-Encoding, Cookie.
+     *
      * @param option ":option" or ":option=value"
      */
     public void addOption(String option) {

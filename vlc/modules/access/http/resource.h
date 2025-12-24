@@ -32,6 +32,14 @@ struct vlc_http_msg;
 struct vlc_http_mgr;
 struct vlc_http_resource;
 
+typedef struct vlc_object_t vlc_object_t;
+
+struct vlc_http_custom_header
+{
+    char *name;
+    char *value;
+};
+
 struct vlc_http_resource_cbs
 {
     int (*request_format)(const struct vlc_http_resource *,
@@ -56,12 +64,17 @@ struct vlc_http_resource
     char *password;
     char *agent;
     char *referrer;
+
+    vlc_object_t *logger;
+    struct vlc_http_custom_header *custom_headers;
+    size_t custom_headers_count;
 };
 
 int vlc_http_res_init(struct vlc_http_resource *,
                       const struct vlc_http_resource_cbs *cbs,
                       struct vlc_http_mgr *mgr,
-                      const char *uri, const char *ua, const char *ref);
+                      const char *uri, const char *ua, const char *ref,
+                      const char *custom_headers, vlc_object_t *logger);
 
 /**
  * Destroys an HTTP resource.

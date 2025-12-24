@@ -238,7 +238,8 @@ class adaptive::http::LibVLCHTTPSource : public adaptive::BlockStreamInterface
             if (vlc_http_res_init(&tpl->resource, &this->callbacks, http_mgr,
                                   params.getUrl().c_str(),
                                   ua.empty() ? nullptr : ua.c_str(),
-                                  ref.empty() ? nullptr : ref.c_str()))
+                                  ref.empty() ? nullptr : ref.c_str(),
+                                  nullptr, p_object))
             {
                 std::free(tpl);
                 return -1;

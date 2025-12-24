@@ -112,14 +112,16 @@ static const struct vlc_http_resource_cbs vlc_http_file_callbacks =
 
 struct vlc_http_resource *vlc_http_file_create(struct vlc_http_mgr *mgr,
                                                const char *uri, const char *ua,
-                                               const char *ref)
+                                               const char *ref,
+                                               const char *custom_headers,
+                                               vlc_object_t *logger)
 {
     struct vlc_http_file *file = malloc(sizeof (*file));
     if (unlikely(file == NULL))
         return NULL;
 
     if (vlc_http_res_init(&file->resource, &vlc_http_file_callbacks, mgr,
-                          uri, ua, ref))
+                          uri, ua, ref, custom_headers, logger))
     {
         free(file);
         return NULL;
