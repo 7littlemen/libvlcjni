@@ -2229,6 +2229,14 @@ LIBVLC_API void libvlc_video_set_spu_text_color( libvlc_media_player_t *p_mi, in
  * \version LibVLC 4.0.0 or later
  */
 LIBVLC_API int64_t libvlc_video_get_spu_text_color( libvlc_media_player_t *p_mi );
+/**
+ * Check if the currently selected video track is Dolby Vision Profile 5.
+ *
+ * \param p_mi media player
+ * \return true if Dolby Vision Profile 5 is detected, false otherwise
+ * \version LibVLC 4.0.0 or later
+ */
+LIBVLC_API bool libvlc_video_is_dolby_vision_p5( libvlc_media_player_t *p_mi );
 
 /**
  * Set subtitle outline color.

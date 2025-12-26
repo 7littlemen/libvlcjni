@@ -804,6 +804,161 @@ static void CleanInputVideo(decoder_t *p_dec)
     }
 }
 
+static const char *VideoPrimariesStr(video_color_primaries_t primaries)
+{
+    switch (primaries)
+    {
+        case COLOR_PRIMARIES_BT601_525: return "BT.601-525";
+        case COLOR_PRIMARIES_BT601_625: return "BT.601-625";
+        case COLOR_PRIMARIES_BT709:     return "BT.709";
+        case COLOR_PRIMARIES_BT2020:    return "BT.2020";
+        case COLOR_PRIMARIES_DCI_P3:    return "DCI-P3";
+        case COLOR_PRIMARIES_FCC1953:   return "FCC1953";
+        case COLOR_PRIMARIES_UNDEF:
+        default:                        return "(undef)";
+    }
+}
+
+static const char *VideoTransferStr(video_transfer_func_t transfer)
+{
+    switch (transfer)
+    {
+        case TRANSFER_FUNC_LINEAR:       return "Linear";
+        case TRANSFER_FUNC_SRGB:         return "sRGB";
+        case TRANSFER_FUNC_BT470_BG:     return "BT.470 BG";
+        case TRANSFER_FUNC_BT470_M:      return "BT.470 M";
+        case TRANSFER_FUNC_BT709:        return "BT.709";
+        case TRANSFER_FUNC_SMPTE_ST2084: return "PQ (ST 2084)";
+        case TRANSFER_FUNC_SMPTE_240:    return "SMPTE 240";
+        case TRANSFER_FUNC_HLG:          return "HLG";
+        case TRANSFER_FUNC_UNDEF:
+        default:                         return "(undef)";
+    }
+}
+
+static const char *VideoColorspaceStr(video_color_space_t space)
+{
+    switch (space)
+    {
+        case COLOR_SPACE_BT601:  return "BT.601";
+        case COLOR_SPACE_BT709:  return "BT.709";
+        case COLOR_SPACE_BT2020: return "BT.2020";
+        case COLOR_SPACE_UNDEF:
+        default:                 return "(undef)";
+    }
+}
+
+static const char *VideoRangeStr(video_color_range_t range)
+{
+    switch (range)
+    {
+        case COLOR_RANGE_FULL:    return "Full";
+        case COLOR_RANGE_LIMITED: return "Limited";
+        case COLOR_RANGE_UNDEF:
+        default:                  return "(undef)";
+    }
+}
+
+static const char *VideoChromaLocationStr(video_chroma_location_t loc)
+{
+    switch (loc)
+    {
+        case CHROMA_LOCATION_LEFT:          return "Left";
+        case CHROMA_LOCATION_CENTER:        return "Center";
+        case CHROMA_LOCATION_TOP_LEFT:      return "TopLeft";
+        case CHROMA_LOCATION_TOP_CENTER:    return "TopCenter";
+        case CHROMA_LOCATION_BOTTOM_LEFT:   return "BottomLeft";
+        case CHROMA_LOCATION_BOTTOM_CENTER: return "BottomCenter";
+        case CHROMA_LOCATION_UNDEF:
+        default:                            return "(undef)";
+    }
+}
+
+static const char *HevcProfileName(uint8_t profile_idc)
+{
+    switch (profile_idc)
+    {
+        case 1: return "Main";
+        case 2: return "Main 10";
+        case 3: return "Main Still Picture";
+        default: return "(unknown)";
+    }
+}
+
+static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
+{
+    const video_format_t *v = &p_dec->fmt_in->video;
+
+    msg_Dbg(p_dec,
+             "MediaCodec input: codec=%4.4s size=%ux%u visible=%ux%u offset=%u,%u sar=%u/%u fps=%u/%u profile=%d bitrate=%u",
+             (const char *) &p_dec->fmt_in->i_codec,
+             (unsigned) v->i_width, (unsigned) v->i_height,
+             (unsigned) v->i_visible_width, (unsigned) v->i_visible_height,
+             (unsigned) v->i_x_offset, (unsigned) v->i_y_offset,
+             (unsigned) v->i_sar_num, (unsigned) v->i_sar_den,
+             (unsigned) v->i_frame_rate, (unsigned) v->i_frame_rate_base,
+             i_profile,
+             (unsigned) p_dec->fmt_in->i_bitrate);
+
+    msg_Dbg(p_dec,
+             "MediaCodec input color: range=%s primaries=%s transfer=%s matrix=%s chroma_location=%s chroma=%4.4s",
+             VideoRangeStr(v->color_range),
+             VideoPrimariesStr(v->primaries),
+             VideoTransferStr(v->transfer),
+             VideoColorspaceStr(v->space),
+             VideoChromaLocationStr(v->chroma_location),
+             (const char *) &v->i_chroma);
+
+    const bool has_mastering = v->mastering.max_luminance != 0 || v->mastering.min_luminance != 0;
+    const bool has_lighting = v->lighting.MaxCLL != 0 || v->lighting.MaxFALL != 0;
+    if (has_mastering || has_lighting)
+    {
+        const double max_lum = v->mastering.max_luminance ? ((double) v->mastering.max_luminance) / 10000.0 : 0.0;
+        const double min_lum = v->mastering.min_luminance ? ((double) v->mastering.min_luminance) / 10000.0 : 0.0;
+        msg_Dbg(p_dec,
+                 "MediaCodec input HDR10: mastering max_lum=%u(%.4fcd/m2) min_lum=%u(%.4fcd/m2) MaxCLL=%u MaxFALL=%u",
+                 (unsigned) v->mastering.max_luminance, max_lum,
+                 (unsigned) v->mastering.min_luminance, min_lum,
+                 (unsigned) v->lighting.MaxCLL,
+                 (unsigned) v->lighting.MaxFALL);
+    }
+
+    if (v->dovi.profile != 0)
+        msg_Dbg(p_dec,
+                 "MediaCodec input DOVI: v%u.%u profile=%u level=%u rpu=%u bl=%u el=%u",
+                 (unsigned) v->dovi.version_major,
+                 (unsigned) v->dovi.version_minor,
+                 (unsigned) v->dovi.profile,
+                 (unsigned) v->dovi.level,
+                 (unsigned) v->dovi.rpu_present,
+                 (unsigned) v->dovi.bl_present,
+                 (unsigned) v->dovi.el_present);
+
+    if (p_dec->fmt_in->i_codec == VLC_CODEC_HEVC)
+    {
+        uint8_t hevc_profile = 0, hevc_level = 0, hevc_nal_len = 0;
+        if (hevc_get_profile_level(p_dec->fmt_in, &hevc_profile, &hevc_level, &hevc_nal_len))
+            msg_Dbg(p_dec,
+                     "MediaCodec input HEVC: profile_idc=%u(%s) level_idc=%u(%.1f) nal_length_size=%u",
+                     (unsigned) hevc_profile,
+                     HevcProfileName(hevc_profile),
+                     (unsigned) hevc_level,
+                     hevc_level ? ((double) hevc_level) / 30.0 : 0.0,
+                     (unsigned) hevc_nal_len);
+    }
+    else if (p_dec->fmt_in->i_codec == VLC_CODEC_H264)
+    {
+        uint8_t h264_profile = 0, h264_level = 0, h264_nal_len = 0;
+        if (h264_get_profile_level(p_dec->fmt_in, &h264_profile, &h264_level, &h264_nal_len))
+            msg_Dbg(p_dec,
+                     "MediaCodec input H264: profile_idc=%u level_idc=%u(%.1f) nal_length_size=%u",
+                     (unsigned) h264_profile,
+                     (unsigned) h264_level,
+                     h264_level ? ((double) h264_level) / 10.0 : 0.0,
+                     (unsigned) h264_nal_len);
+    }
+}
+
 /*****************************************************************************
  * OpenDecoder: Create the decoder instance
  *****************************************************************************/
@@ -818,6 +973,8 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
     int i_ret;
     int i_profile = p_dec->fmt_in->i_profile;
     const char *mime = NULL;
+    const char *fallback_mime = NULL;
+    bool b_try_hevc_fallback = false;
 
     /* Video or Audio if "mediacodec-audio" bool is true */
     if (p_dec->fmt_in->i_cat != VIDEO_ES && (p_dec->fmt_in->i_cat != AUDIO_ES
@@ -830,6 +987,27 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
 
     if (p_dec->fmt_in->i_cat == VIDEO_ES)
     {
+        LogMediaCodecInputVideo(p_dec, i_profile);
+
+        /* Dolby Vision (e.g. Profile 5) often comes as an HEVC ES with DOVI
+         * configuration signaled by the demuxer (video.dovi.*). When the
+         * device supports it, decoding must go through the Dolby Vision
+         * MediaCodec MIME type, otherwise colors are wrong.
+         *
+         * If the device doesn't expose a Dolby Vision decoder, we fall back
+         * to regular HEVC decoding.
+         */
+        const unsigned dovi_profile = (unsigned) p_dec->fmt_in->video.dovi.profile;
+        const bool b_is_dovi_p5p8 = dovi_profile == 5 || dovi_profile == 8;
+        if (b_is_dovi_p5p8)
+            msg_Dbg(p_dec,
+                     "Dolby Vision signaled: profile=%u level=%u rpu=%u bl=%u el=%u",
+                     dovi_profile,
+                     (unsigned) p_dec->fmt_in->video.dovi.level,
+                     (unsigned) p_dec->fmt_in->video.dovi.rpu_present,
+                     (unsigned) p_dec->fmt_in->video.dovi.bl_present,
+                     (unsigned) p_dec->fmt_in->video.dovi.el_present);
+
         /* Not all mediacodec versions can handle a size of 0. Hopefully, the
          * packetizer will trigger a decoder restart when a new video size is
          * found. */
@@ -838,6 +1016,22 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
 
         switch (p_dec->fmt_in->i_codec) {
         case VLC_CODEC_HEVC:
+            if (b_is_dovi_p5p8)
+            {
+                /* Avoid filtering by HEVC profile when querying DV decoders:
+                 * DV profile levels are not necessarily reported as HEVC
+                 * profiles.
+                 */
+                i_profile = -1;
+                mime = "video/dolby-vision";
+                fallback_mime = "video/hevc";
+                b_try_hevc_fallback = true;
+                msg_Dbg(p_dec,
+                         "MediaCodec MIME decision: dovi_p5p8=1 dovi_profile=%u mime=%s fallback=%s hevc_profile_filter=%d",
+                         dovi_profile,
+                         mime, fallback_mime, i_profile);
+                break;
+            }
             if (i_profile == -1)
             {
                 uint8_t i_hevc_profile;
@@ -845,6 +1039,9 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
                     i_profile = i_hevc_profile;
             }
             mime = "video/hevc";
+            msg_Dbg(p_dec,
+                     "MediaCodec MIME decision: dovi_p5p8=0 dovi_profile=%u mime=%s hevc_profile=%d",
+                     dovi_profile, mime, i_profile);
             break;
         case VLC_CODEC_H264:
             if (i_profile == -1)
@@ -854,6 +1051,9 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
                     i_profile = i_h264_profile;
             }
             mime = "video/avc";
+            msg_Dbg(p_dec,
+                     "MediaCodec MIME decision: mime=%s avc_profile=%d",
+                     mime, i_profile);
             break;
         case VLC_CODEC_H263: mime = "video/3gpp"; break;
         case VLC_CODEC_MP4V: mime = "video/mp4v-es"; break;
@@ -924,6 +1124,14 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
     }
     if (p_sys->api.prepare(&p_sys->api, i_profile) != 0)
     {
+        if (b_try_hevc_fallback)
+        {
+            msg_Warn(p_dec, "No Dolby Vision decoder for %s, falling back to %s",
+                     p_sys->api.psz_mime, fallback_mime);
+            p_sys->api.psz_mime = fallback_mime;
+            if (p_sys->api.prepare(&p_sys->api, i_profile) == 0)
+                goto prepared;
+        }
         /* If the device can't handle video/wvc1,
          * it can probably handle video/x-ms-wmv */
         if (!strcmp(mime, "video/wvc1") && p_dec->fmt_in->i_codec == VLC_CODEC_VC1)
@@ -943,6 +1151,12 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
             return VLC_EGENERIC;
         }
     }
+
+    msg_Dbg(p_dec, "MediaCodec selected: mime=%s name=%s",
+             p_sys->api.psz_mime ? p_sys->api.psz_mime : "(null)",
+             p_sys->api.psz_name ? p_sys->api.psz_name : "(null)");
+
+prepared:
 
     p_dec->p_sys = p_sys;
 

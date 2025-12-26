@@ -1025,6 +1025,17 @@ Java_org_videolan_libvlc_MediaPlayer_nativeGetSpuOutlineThickness(JNIEnv *env,
 }
 
 jboolean
+Java_org_videolan_libvlc_MediaPlayer_isDolbyVisionP5(JNIEnv *env, jobject thiz)
+{
+    vlcjni_object *p_obj = VLCJniObject_getInstance(env, thiz);
+
+    if (!p_obj)
+        return JNI_FALSE;
+
+    return libvlc_video_is_dolby_vision_p5(p_obj->u.p_mp) ? JNI_TRUE : JNI_FALSE;
+}
+
+jboolean
 Java_org_videolan_libvlc_MediaPlayer_nativeTakeSnapshot(JNIEnv *env, jobject thiz,
                                                         jint num, jstring jfilepath,
                                                         jint width, jint height)

@@ -1479,6 +1479,13 @@ public class MediaPlayer extends VLCObject<MediaPlayer.Event> {
     public native boolean isSeekable();
 
     /**
+     * Check if the currently selected video track is Dolby Vision Profile 5.
+     *
+     * @return true if Dolby Vision Profile 5 is detected, false otherwise
+     */
+    public native boolean isDolbyVisionP5();
+
+    /**
      * Pauses any playing media
      */
     public native void pause();

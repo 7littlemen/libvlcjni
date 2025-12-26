@@ -37,6 +37,7 @@
 
 #include <vlc_common.h>
 #include <vlc_modules.h>
+#include <vlc_player.h>
 #include <vlc_vout.h>
 #include <vlc_url.h>
 
@@ -177,6 +178,49 @@ int libvlc_video_get_size( libvlc_media_player_t *p_mi, unsigned ignored,
 
     return ret;
 }
+
+static int libvlc_video_GetDolbyVisionProfile( libvlc_media_player_t *p_mi )
+{
+    if (p_mi == NULL || p_mi->player == NULL)
+        return 0;
+
+    vlc_player_t *player = p_mi->player;
+    vlc_player_Lock(player);
+
+    const struct vlc_player_track *track =
+        vlc_player_GetSelectedTrack(player, VIDEO_ES);
+
+    int profile = track ? (int) track->fmt.video.dovi.profile : 0;
+
+    /* Some Dolby Vision profiles (e.g. Profile 7) can be signaled on a
+     * different video track than the one selected for playback.
+     * Fall back to scanning all video tracks.
+     */
+    if (profile == 0)
+    {
+        const size_t count = vlc_player_GetTrackCount(player, VIDEO_ES);
+        for (size_t i = 0; i < count; ++i)
+        {
+            const struct vlc_player_track *t =
+                vlc_player_GetTrackAt(player, VIDEO_ES, i);
+            if (t && t->fmt.video.dovi.profile != 0)
+            {
+                profile = (int) t->fmt.video.dovi.profile;
+                break;
+            }
+        }
+    }
+
+    vlc_player_Unlock(player);
+    return profile;
+}
+
+
+bool libvlc_video_is_dolby_vision_p5( libvlc_media_player_t *p_mi )
+{
+    return libvlc_video_GetDolbyVisionProfile(p_mi) == 5;
+}
+
 
 int libvlc_video_get_cursor( libvlc_media_player_t *mp, unsigned num,
                              int *restrict px, int *restrict py )
