@@ -41,6 +41,272 @@ extern "C" {
 #include <vlc_url.h>
 #include <vlc_ancillary.h>
 
+extern "C" {
+    #include "../../packetizer/hxxx_nal.h"
+    #include "../../packetizer/hevc_nal.h"
+}
+
+static uint8_t *Ep3bToRbspAlloc(const uint8_t *p_src, size_t i_src, size_t *pi_ret)
+{
+    if (!p_src || i_src == 0)
+        return NULL;
+
+    uint8_t *p_dst = (uint8_t *) malloc(i_src);
+    if (!p_dst)
+        return NULL;
+
+    size_t j = 0;
+    for (size_t i = 0; i < i_src; i++)
+    {
+        if (i + 2 < i_src && p_src[i] == 0 && p_src[i + 1] == 0 && p_src[i + 2] == 3)
+        {
+            p_dst[j++] = 0;
+            p_dst[j++] = 0;
+            i += 2;
+            continue;
+        }
+        p_dst[j++] = p_src[i];
+    }
+
+    *pi_ret = j;
+    return p_dst;
+}
+
+static bool TryParseDoviConfigFromHevcNal(vlc_object_t *obj, video_format_t *v,
+                                         const uint8_t *p_nal, size_t i_nal)
+{
+    if (v->dovi.profile != 0)
+        return false;
+
+    /* HEVC NAL header is 2 bytes */
+    if (i_nal <= 2)
+        return false;
+
+    size_t i_rbsp = 0;
+    uint8_t *p_rbsp = Ep3bToRbspAlloc(p_nal + 2, i_nal - 2, &i_rbsp);
+    if (!p_rbsp)
+        return false;
+
+    const size_t i_scan = i_rbsp < 128 ? i_rbsp : 128;
+
+    struct dovi_candidate
+    {
+        uint8_t vmaj;
+        uint8_t vmin;
+        uint8_t profile;
+        uint8_t level;
+        uint8_t rpu_present;
+        uint8_t el_present;
+        uint8_t bl_present;
+        size_t off;
+        int score;
+    };
+
+    bool b_found = false;
+    struct dovi_candidate best = { 0 };
+    best.score = -100000;
+
+    for (size_t off = 0; off + 4 <= i_scan; off++)
+    {
+        const uint8_t vmaj = p_rbsp[off];
+        const uint8_t vmin = p_rbsp[off + 1];
+        const uint16_t flags = ((uint16_t)p_rbsp[off + 2] << 8) | p_rbsp[off + 3];
+        const uint8_t profile = (flags >> 9) & 0x7f;
+        const uint8_t level = (flags >> 3) & 0x3f;
+        const uint8_t rpu_present = (flags >> 2) & 0x01;
+        const uint8_t el_present = (flags >> 1) & 0x01;
+        const uint8_t bl_present = flags & 0x01;
+
+        /* Heuristic validation/scoring:
+         * We only use this to derive stream-wide DOVI config early.
+         * Reject obvious false positives like v0.0.
+         */
+        if (vmaj == 0)
+            continue;
+        if (vmaj > 3 || vmin > 3)
+            continue;
+        if (profile == 0)
+            continue;
+        if (!rpu_present)
+            continue;
+        /* Profile 5/8 are single-layer (no EL). If we see EL present for those,
+         * it is almost certainly a false-positive match.
+         */
+        if ((profile == 5 || profile == 8) && el_present)
+            continue;
+
+        int score = 0;
+        if (vmaj == 1)
+            score += 10;
+        else
+            score += 2;
+        if (vmin == 0)
+            score += 4;
+        if (profile == 5)
+            score += 12;
+        else if (profile == 8)
+            score += 10;
+        else
+            score += 1;
+        if (bl_present)
+            score += 3;
+        if (!el_present)
+            score += 1;
+        if (level != 0)
+            score += 1;
+
+        if (score > best.score)
+        {
+            best.vmaj = vmaj;
+            best.vmin = vmin;
+            best.profile = profile;
+            best.level = level;
+            best.rpu_present = rpu_present;
+            best.el_present = el_present;
+            best.bl_present = bl_present;
+            best.off = off;
+            best.score = score;
+            b_found = true;
+        }
+    }
+
+    if (b_found)
+    {
+        v->dovi.version_major = best.vmaj;
+        v->dovi.version_minor = best.vmin;
+        v->dovi.profile = best.profile;
+        v->dovi.level = best.level;
+        v->dovi.rpu_present = best.rpu_present;
+        v->dovi.el_present = best.el_present;
+        v->dovi.bl_present = best.bl_present;
+
+        msg_Dbg(obj,
+                "MediaCodecNew MKV demux: DOVI config detected from DV NAL: v%u.%u profile=%u level=%u rpu=%u bl=%u el=%u (off=%zu score=%d)",
+                (unsigned) best.vmaj, (unsigned) best.vmin,
+                (unsigned) best.profile, (unsigned) best.level,
+                (unsigned) best.rpu_present, (unsigned) best.bl_present, (unsigned) best.el_present,
+                best.off, best.score);
+    }
+
+    free(p_rbsp);
+    return b_found;
+}
+
+static bool ForceDoviFromHevcNal62(vlc_object_t *obj, video_format_t *v)
+{
+    if (v->dovi.profile != 0)
+        return false;
+
+    /* Fallback: some MKV Dolby Vision samples expose DV RPU (HEVC NAL type 62)
+     * but do not reliably carry a parseable DOVI decoder configuration record
+     * in-band for our heuristic scan.
+     *
+     * For Android MediaCodec selection we only need a non-zero profile to
+     * select the Dolby Vision MIME type.
+     */
+    v->dovi.version_major = 1;
+    v->dovi.version_minor = 0;
+    v->dovi.profile = 1; /* non-zero sentinel: Dolby Vision present, profile unknown */
+    v->dovi.level = 0;
+    v->dovi.rpu_present = 1;
+    v->dovi.el_present = 0;
+    v->dovi.bl_present = 0;
+
+    msg_Dbg(obj,
+            "MediaCodecNew MKV demux: DV RPU NAL (type 62) seen but no DOVI config record parsed; forcing dovi_profile=%u",
+            (unsigned) v->dovi.profile);
+    return true;
+}
+
+static void MaybeUpdateTrackDoviFromHevcBlock(demux_t *p_demux, mkv::mkv_track_t &track, const block_t *p_block)
+{
+    if (track.fmt.i_codec != VLC_CODEC_HEVC)
+        return;
+    if (track.fmt.i_cat != VIDEO_ES)
+        return;
+    if (track.fmt.video.dovi.profile != 0)
+        return;
+    if (!track.p_es)
+        return;
+    if (!p_block || !p_block->p_buffer || p_block->i_buffer < 8)
+        return;
+
+    uint8_t nal_len_size = 4;
+    if (track.fmt.p_extra && track.fmt.i_extra > 0)
+    {
+        const uint8_t *p_extra = (const uint8_t *) track.fmt.p_extra;
+        if (hevc_ishvcC(p_extra, track.fmt.i_extra))
+            nal_len_size = hevc_getNALLengthSize(p_extra);
+    }
+
+    const uint8_t *p = p_block->p_buffer;
+    const size_t n = p_block->i_buffer;
+
+    /* AnnexB */
+    if ((n >= 4 && p[0] == 0 && p[1] == 0 && (p[2] == 1 || (p[2] == 0 && p[3] == 1))))
+    {
+        hxxx_iterator_ctx_t it;
+        hxxx_iterator_init(&it, p, n, 0);
+        const uint8_t *p_nal = NULL;
+        size_t i_nal = 0;
+        while (hxxx_annexb_iterate_next(&it, &p_nal, &i_nal))
+        {
+            if (i_nal < 2)
+                continue;
+            if (hevc_getNALType(p_nal) != 62)
+                continue;
+            static unsigned s_nal62_seen_annexb = 0;
+            if (s_nal62_seen_annexb < 3)
+            {
+                msg_Dbg(p_demux,
+                        "MediaCodecNew MKV demux: NAL62 seen (annexb) nal_size=%zu track=%u",
+                        i_nal, (unsigned) track.i_number);
+                s_nal62_seen_annexb++;
+            }
+            if (TryParseDoviConfigFromHevcNal(VLC_OBJECT(p_demux), &track.fmt.video, p_nal, i_nal) ||
+                ForceDoviFromHevcNal62(VLC_OBJECT(p_demux), &track.fmt.video))
+            {
+                const int ok = es_out_Control(p_demux->out, ES_OUT_SET_ES_FMT, track.p_es, &track.fmt);
+                msg_Dbg(p_demux,
+                        "MediaCodecNew MKV demux: ES_OUT_SET_ES_FMT DOVI update result=%d track=%u",
+                        ok, (unsigned) track.i_number);
+                return;
+            }
+        }
+        return;
+    }
+
+    /* Length-prefixed */
+    hxxx_iterator_ctx_t it;
+    hxxx_iterator_init(&it, p, n, nal_len_size);
+    const uint8_t *p_nal = NULL;
+    size_t i_nal = 0;
+    while (hxxx_iterate_next(&it, &p_nal, &i_nal))
+    {
+        if (i_nal < 2)
+            continue;
+        if (hevc_getNALType(p_nal) != 62)
+            continue;
+        static unsigned s_nal62_seen_lenpref = 0;
+        if (s_nal62_seen_lenpref < 3)
+        {
+            msg_Dbg(p_demux,
+                    "MediaCodecNew MKV demux: NAL62 seen (length-prefixed) nal_size=%zu nal_len_size=%u track=%u",
+                    i_nal, (unsigned) nal_len_size, (unsigned) track.i_number);
+            s_nal62_seen_lenpref++;
+        }
+        if (TryParseDoviConfigFromHevcNal(VLC_OBJECT(p_demux), &track.fmt.video, p_nal, i_nal) ||
+            ForceDoviFromHevcNal62(VLC_OBJECT(p_demux), &track.fmt.video))
+        {
+            const int ok = es_out_Control(p_demux->out, ES_OUT_SET_ES_FMT, track.p_es, &track.fmt);
+            msg_Dbg(p_demux,
+                    "MediaCodecNew MKV demux: ES_OUT_SET_ES_FMT DOVI update result=%d track=%u nal_len=%u",
+                    ok, (unsigned) track.i_number, (unsigned) nal_len_size);
+            return;
+        }
+    }
+}
+
 /*****************************************************************************
  * Module descriptor
  *****************************************************************************/
@@ -747,6 +1013,9 @@ static void BlockDecode( demux_t *p_demux, KaxBlock *block, KaxSimpleBlock *simp
             }
             break;
         }
+
+        if (track.fmt.i_cat == VIDEO_ES && track.fmt.i_codec == VLC_CODEC_HEVC)
+            MaybeUpdateTrackDoviFromHevcBlock(p_demux, track, p_block);
 
         if( track.fmt.i_cat != VIDEO_ES )
         {

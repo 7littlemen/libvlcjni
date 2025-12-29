@@ -124,6 +124,158 @@ static block_t *GetXPSCopy(decoder_sys_t *);
 
 #define BLOCK_FLAG_DROP (1 << BLOCK_FLAG_PRIVATE_SHIFT)
 
+static uint8_t *Ep3bToRbspAlloc(const uint8_t *p_src, size_t i_src, size_t *pi_ret)
+{
+    if (!p_src || i_src == 0)
+        return NULL;
+
+    uint8_t *p_dst = malloc(i_src);
+    if (!p_dst)
+        return NULL;
+
+    size_t j = 0;
+    for (size_t i = 0; i < i_src; i++)
+    {
+        if (i + 2 < i_src && p_src[i] == 0 && p_src[i + 1] == 0 && p_src[i + 2] == 3)
+        {
+            p_dst[j++] = 0;
+            p_dst[j++] = 0;
+            i += 2;
+            continue;
+        }
+        p_dst[j++] = p_src[i];
+    }
+
+    *pi_ret = j;
+    return p_dst;
+}
+
+static bool TryParseDoviConfigFromHevcUnspecNal(decoder_t *p_dec,
+                                                const uint8_t *p_nal, size_t i_nal)
+{
+    video_format_t *v = &p_dec->fmt_out.video;
+    if (v->dovi.profile != 0)
+        return false;
+
+    /* HEVC NAL header is 2 bytes. We get AnnexB NAL payload with header.
+     * DOVI RPU commonly uses NAL unit type 62 (unspecified).
+     */
+    if (i_nal <= 2)
+        return false;
+
+    size_t i_rbsp = 0;
+    uint8_t *p_rbsp = Ep3bToRbspAlloc(p_nal + 2, i_nal - 2, &i_rbsp);
+    if (!p_rbsp)
+        return false;
+
+    /* Heuristic scan: look for a valid DOVIDecoderConfigurationRecord
+     * (vMajor,vMinor,flags16) in the first bytes of the RBSP.
+     */
+    const size_t i_scan = i_rbsp < 128 ? i_rbsp : 128;
+
+    struct dovi_candidate
+    {
+        uint8_t vmaj;
+        uint8_t vmin;
+        uint8_t profile;
+        uint8_t level;
+        uint8_t rpu_present;
+        uint8_t el_present;
+        uint8_t bl_present;
+        size_t off;
+        int score;
+    };
+
+    bool b_found = false;
+    struct dovi_candidate best = { 0 };
+    best.score = -100000;
+
+    for (size_t off = 0; off + 4 <= i_scan; off++)
+    {
+        const uint8_t vmaj = p_rbsp[off];
+        const uint8_t vmin = p_rbsp[off + 1];
+        const uint16_t flags = ((uint16_t)p_rbsp[off + 2] << 8) | p_rbsp[off + 3];
+        const uint8_t profile = (flags >> 9) & 0x7f;
+        const uint8_t level = (flags >> 3) & 0x3f;
+        const uint8_t rpu_present = (flags >> 2) & 0x01;
+        const uint8_t el_present = (flags >> 1) & 0x01;
+        const uint8_t bl_present = flags & 0x01;
+
+        if (vmaj == 0)
+            continue;
+        if (vmaj > 3 || vmin > 3)
+            continue;
+        if (profile == 0)
+            continue;
+        if (rpu_present > 1 || el_present > 1 || bl_present > 1)
+            continue;
+        if (!rpu_present)
+            continue;
+        if ((profile == 5 || profile == 8) && el_present)
+            continue;
+
+        int score = 0;
+        if (vmaj == 1)
+            score += 10;
+        else
+            score += 2;
+        if (vmin == 0)
+            score += 4;
+        if (profile == 5)
+            score += 12;
+        else if (profile == 8)
+            score += 10;
+        else
+            score += 1;
+        if (bl_present)
+            score += 3;
+        if (!el_present)
+            score += 1;
+        if (level != 0)
+            score += 1;
+
+        if (score > best.score)
+        {
+            best.vmaj = vmaj;
+            best.vmin = vmin;
+            best.profile = profile;
+            best.level = level;
+            best.rpu_present = rpu_present;
+            best.el_present = el_present;
+            best.bl_present = bl_present;
+            best.off = off;
+            best.score = score;
+            b_found = true;
+        }
+    }
+
+    if (b_found)
+    {
+        v->dovi.version_major = best.vmaj;
+        v->dovi.version_minor = best.vmin;
+        v->dovi.profile = best.profile;
+        v->dovi.level = best.level;
+        v->dovi.rpu_present = best.rpu_present;
+        v->dovi.el_present = best.el_present;
+        v->dovi.bl_present = best.bl_present;
+
+        msg_Dbg(p_dec,
+                "MediaCodecNew Packetizer HEVC: DOVI config detected from NAL (type 62): v%u.%u profile=%u level=%u rpu=%u bl=%u el=%u (off=%zu score=%d)",
+                (unsigned) best.vmaj, (unsigned) best.vmin,
+                (unsigned) best.profile, (unsigned) best.level,
+                (unsigned) best.rpu_present, (unsigned) best.bl_present, (unsigned) best.el_present,
+                best.off, best.score);
+    }
+
+    if (!b_found)
+        msg_Dbg(p_dec,
+                "MediaCodecNew Packetizer HEVC: NAL type 62 seen but no valid DOVI config record found (rbsp=%zu)",
+                i_rbsp);
+
+    free(p_rbsp);
+    return b_found;
+}
+
 /****************************************************************************
  * Helpers
  ****************************************************************************/
@@ -969,6 +1121,14 @@ static block_t *ParseNALBlock(decoder_t *p_dec, bool *pb_ts_used, block_t *p_fra
     const vlc_tick_t dts = p_frag->i_dts, pts = p_frag->i_pts;
     block_t * p_output = NULL;
     uint8_t i_nal_type = hevc_getNALType(&p_frag->p_buffer[4]);
+
+    /* Container-agnostic Dolby Vision signaling: some bitstreams carry the
+     * DOVI decoder configuration record in/near the DV RPU (commonly NAL type 62).
+     * Populate fmt_out.video.dovi.* early so Android MediaCodec can choose the
+     * Dolby Vision decoder (video/dolby-vision) when available.
+     */
+    if (i_nal_type == 62)
+        (void) TryParseDoviConfigFromHevcUnspecNal(p_dec, &p_frag->p_buffer[4], p_frag->i_buffer - 4);
 
     if (i_nal_type < HEVC_NAL_VPS)
     {

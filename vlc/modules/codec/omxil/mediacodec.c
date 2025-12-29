@@ -998,8 +998,14 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
          * to regular HEVC decoding.
          */
         const unsigned dovi_profile = (unsigned) p_dec->fmt_in->video.dovi.profile;
-        const bool b_is_dovi_p5p8 = dovi_profile == 5 || dovi_profile == 8;
-        if (b_is_dovi_p5p8)
+        msg_Dbg(p_dec, "MediaCodecNew dovi_profile=%u", dovi_profile);
+        const bool b_is_dovi = dovi_profile != 0;
+        if (p_dec->fmt_in->video.dovi.profile != 0 && p_dec->fmt_in->i_codec != VLC_CODEC_HEVC)
+            msg_Dbg(p_dec,
+                    "MediaCodecNew Dolby Vision signaled but codec is not HEVC: codec=%4.4s dovi_profile=%u (ignored for MIME decision)",
+                    (const char *) &p_dec->fmt_in->i_codec, dovi_profile);
+
+        if (b_is_dovi)
             msg_Dbg(p_dec,
                      "MediaCodecNew Dolby Vision signaled: profile=%u level=%u rpu=%u bl=%u el=%u",
                      dovi_profile,
@@ -1016,7 +1022,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
 
         switch (p_dec->fmt_in->i_codec) {
         case VLC_CODEC_HEVC:
-            if (b_is_dovi_p5p8)
+            if (b_is_dovi)
             {
                 /* Avoid filtering by HEVC profile when querying DV decoders:
                  * DV profile levels are not necessarily reported as HEVC
@@ -1027,7 +1033,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
                 fallback_mime = "video/hevc";
                 b_try_hevc_fallback = true;
                 msg_Dbg(p_dec,
-                         "MediaCodecNew MIME decision: dovi_p5p8=1 dovi_profile=%u mime=%s fallback=%s hevc_profile_filter=%d",
+                         "MediaCodecNew MIME decision: dovi=1 dovi_profile=%u mime=%s fallback=%s hevc_profile_filter=%d",
                          dovi_profile,
                          mime, fallback_mime, i_profile);
                 break;
@@ -1037,10 +1043,12 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
                 uint8_t i_hevc_profile;
                 if (hevc_get_profile_level(p_dec->fmt_in, &i_hevc_profile, NULL, NULL))
                     i_profile = i_hevc_profile;
+                else
+                    msg_Dbg(p_dec, "MediaCodecNew HEVC profile/level extraction failed (hvcC/annexb parse)");
             }
             mime = "video/hevc";
             msg_Dbg(p_dec,
-                     "MediaCodecNew MIME decision: dovi_p5p8=0 dovi_profile=%u mime=%s hevc_profile=%d",
+                     "MediaCodecNew MIME decision: dovi=0 dovi_profile=%u mime=%s hevc_profile=%d",
                      dovi_profile, mime, i_profile);
             break;
         case VLC_CODEC_H264:
