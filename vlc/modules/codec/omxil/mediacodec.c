@@ -890,7 +890,7 @@ static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
     const video_format_t *v = &p_dec->fmt_in->video;
 
     msg_Dbg(p_dec,
-             "MediaCodec input: codec=%4.4s size=%ux%u visible=%ux%u offset=%u,%u sar=%u/%u fps=%u/%u profile=%d bitrate=%u",
+             "MediaCodecNew input: codec=%4.4s size=%ux%u visible=%ux%u offset=%u,%u sar=%u/%u fps=%u/%u profile=%d bitrate=%u",
              (const char *) &p_dec->fmt_in->i_codec,
              (unsigned) v->i_width, (unsigned) v->i_height,
              (unsigned) v->i_visible_width, (unsigned) v->i_visible_height,
@@ -901,7 +901,7 @@ static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
              (unsigned) p_dec->fmt_in->i_bitrate);
 
     msg_Dbg(p_dec,
-             "MediaCodec input color: range=%s primaries=%s transfer=%s matrix=%s chroma_location=%s chroma=%4.4s",
+             "MediaCodecNew input color: range=%s primaries=%s transfer=%s matrix=%s chroma_location=%s chroma=%4.4s",
              VideoRangeStr(v->color_range),
              VideoPrimariesStr(v->primaries),
              VideoTransferStr(v->transfer),
@@ -916,7 +916,7 @@ static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
         const double max_lum = v->mastering.max_luminance ? ((double) v->mastering.max_luminance) / 10000.0 : 0.0;
         const double min_lum = v->mastering.min_luminance ? ((double) v->mastering.min_luminance) / 10000.0 : 0.0;
         msg_Dbg(p_dec,
-                 "MediaCodec input HDR10: mastering max_lum=%u(%.4fcd/m2) min_lum=%u(%.4fcd/m2) MaxCLL=%u MaxFALL=%u",
+                 "MediaCodecNew input HDR10: mastering max_lum=%u(%.4fcd/m2) min_lum=%u(%.4fcd/m2) MaxCLL=%u MaxFALL=%u",
                  (unsigned) v->mastering.max_luminance, max_lum,
                  (unsigned) v->mastering.min_luminance, min_lum,
                  (unsigned) v->lighting.MaxCLL,
@@ -925,7 +925,7 @@ static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
 
     if (v->dovi.profile != 0)
         msg_Dbg(p_dec,
-                 "MediaCodec input DOVI: v%u.%u profile=%u level=%u rpu=%u bl=%u el=%u",
+                 "MediaCodecNew input DOVI: v%u.%u profile=%u level=%u rpu=%u bl=%u el=%u",
                  (unsigned) v->dovi.version_major,
                  (unsigned) v->dovi.version_minor,
                  (unsigned) v->dovi.profile,
@@ -939,7 +939,7 @@ static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
         uint8_t hevc_profile = 0, hevc_level = 0, hevc_nal_len = 0;
         if (hevc_get_profile_level(p_dec->fmt_in, &hevc_profile, &hevc_level, &hevc_nal_len))
             msg_Dbg(p_dec,
-                     "MediaCodec input HEVC: profile_idc=%u(%s) level_idc=%u(%.1f) nal_length_size=%u",
+                     "MediaCodecNew input HEVC: profile_idc=%u(%s) level_idc=%u(%.1f) nal_length_size=%u",
                      (unsigned) hevc_profile,
                      HevcProfileName(hevc_profile),
                      (unsigned) hevc_level,
@@ -951,7 +951,7 @@ static void LogMediaCodecInputVideo(decoder_t *p_dec, int i_profile)
         uint8_t h264_profile = 0, h264_level = 0, h264_nal_len = 0;
         if (h264_get_profile_level(p_dec->fmt_in, &h264_profile, &h264_level, &h264_nal_len))
             msg_Dbg(p_dec,
-                     "MediaCodec input H264: profile_idc=%u level_idc=%u(%.1f) nal_length_size=%u",
+                     "MediaCodecNew input H264: profile_idc=%u level_idc=%u(%.1f) nal_length_size=%u",
                      (unsigned) h264_profile,
                      (unsigned) h264_level,
                      h264_level ? ((double) h264_level) / 10.0 : 0.0,
@@ -1001,7 +1001,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
         const bool b_is_dovi_p5p8 = dovi_profile == 5 || dovi_profile == 8;
         if (b_is_dovi_p5p8)
             msg_Dbg(p_dec,
-                     "Dolby Vision signaled: profile=%u level=%u rpu=%u bl=%u el=%u",
+                     "MediaCodecNew Dolby Vision signaled: profile=%u level=%u rpu=%u bl=%u el=%u",
                      dovi_profile,
                      (unsigned) p_dec->fmt_in->video.dovi.level,
                      (unsigned) p_dec->fmt_in->video.dovi.rpu_present,
@@ -1027,7 +1027,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
                 fallback_mime = "video/hevc";
                 b_try_hevc_fallback = true;
                 msg_Dbg(p_dec,
-                         "MediaCodec MIME decision: dovi_p5p8=1 dovi_profile=%u mime=%s fallback=%s hevc_profile_filter=%d",
+                         "MediaCodecNew MIME decision: dovi_p5p8=1 dovi_profile=%u mime=%s fallback=%s hevc_profile_filter=%d",
                          dovi_profile,
                          mime, fallback_mime, i_profile);
                 break;
@@ -1040,7 +1040,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
             }
             mime = "video/hevc";
             msg_Dbg(p_dec,
-                     "MediaCodec MIME decision: dovi_p5p8=0 dovi_profile=%u mime=%s hevc_profile=%d",
+                     "MediaCodecNew MIME decision: dovi_p5p8=0 dovi_profile=%u mime=%s hevc_profile=%d",
                      dovi_profile, mime, i_profile);
             break;
         case VLC_CODEC_H264:
@@ -1052,7 +1052,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
             }
             mime = "video/avc";
             msg_Dbg(p_dec,
-                     "MediaCodec MIME decision: mime=%s avc_profile=%d",
+                     "MediaCodecNew MIME decision: mime=%s avc_profile=%d",
                      mime, i_profile);
             break;
         case VLC_CODEC_H263: mime = "video/3gpp"; break;
@@ -1126,7 +1126,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
     {
         if (b_try_hevc_fallback)
         {
-            msg_Warn(p_dec, "No Dolby Vision decoder for %s, falling back to %s",
+            msg_Warn(p_dec, "MediaCodecNew No Dolby Vision decoder for %s, falling back to %s",
                      p_sys->api.psz_mime, fallback_mime);
             p_sys->api.psz_mime = fallback_mime;
             if (p_sys->api.prepare(&p_sys->api, i_profile) == 0)
@@ -1152,7 +1152,7 @@ static int OpenDecoder(vlc_object_t *p_this, pf_MediaCodecApi_init pf_init)
         }
     }
 
-    msg_Dbg(p_dec, "MediaCodec selected: mime=%s name=%s",
+    msg_Dbg(p_dec, "MediaCodecNew selected: mime=%s name=%s",
              p_sys->api.psz_mime ? p_sys->api.psz_mime : "(null)",
              p_sys->api.psz_name ? p_sys->api.psz_name : "(null)");
 
